@@ -290,17 +290,76 @@ export default function ChatbotUI() {
     }
   }, [messages])
 
-  // Function to render markdown links in citations
+  // Function to render citation with specific claim highlighted and links
   const renderCitationWithLinks = (citation: string) => {
-    // Parse markdown links [text](url)
-    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g
+    // Check if citation is in the new simple format: "claim" - year source description link
+    const claimMatch = citation.match(/^"([^"]+)"\s*-\s*(.+)/)
+    
+    if (claimMatch) {
+      const [, claim, citationPart] = claimMatch
+      
+      // Look for URLs in the citation part
+      const urlRegex = /(https?:\/\/[^\s]+)/g
+      const parts: (string | React.JSX.Element)[] = []
+      let lastIndex = 0
+      let match
+      let partIndex = 0
+
+      while ((match = urlRegex.exec(citationPart)) !== null) {
+        // Add text before the URL
+        if (match.index > lastIndex) {
+          parts.push(
+            <span key={`text-${partIndex++}`}>
+              {citationPart.slice(lastIndex, match.index)}
+            </span>
+          )
+        }
+        
+        // Add the URL as a clickable link
+        parts.push(
+          <a
+            key={`link-${partIndex++}`}
+            href={match[1]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 underline break-all"
+          >
+            {match[1]}
+          </a>
+        )
+        
+        lastIndex = match.index + match[0].length
+      }
+      
+      // Add any remaining text after the last URL
+      if (lastIndex < citationPart.length) {
+        parts.push(
+          <span key={`text-${partIndex++}`}>
+            {citationPart.slice(lastIndex)}
+          </span>
+        )
+      }
+      
+      return (
+        <>
+          <span className="font-semibold text-gray-800 bg-yellow-50 px-1 rounded">
+            &quot;{claim}&quot;
+          </span>
+          <span className="text-gray-600"> - </span>
+          {parts.length > 0 ? <>{parts}</> : <span>{citationPart}</span>}
+        </>
+      )
+    }
+    
+    // Fallback: parse any URLs in the text and make them clickable
+    const urlRegex = /(https?:\/\/[^\s]+)/g
     const parts: (string | React.JSX.Element)[] = []
     let lastIndex = 0
     let match
     let partIndex = 0
 
-    while ((match = linkRegex.exec(citation)) !== null) {
-      // Add text before the link
+    while ((match = urlRegex.exec(citation)) !== null) {
+      // Add text before the URL
       if (match.index > lastIndex) {
         parts.push(
           <span key={`text-${partIndex++}`}>
@@ -309,11 +368,11 @@ export default function ChatbotUI() {
         )
       }
       
-      // Add the link
+      // Add the URL as a clickable link
       parts.push(
         <a
           key={`link-${partIndex++}`}
-          href={match[2]}
+          href={match[1]}
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-600 hover:text-blue-800 underline break-all"
@@ -325,7 +384,7 @@ export default function ChatbotUI() {
       lastIndex = match.index + match[0].length
     }
     
-    // Add any remaining text
+    // Add any remaining text after the last URL
     if (lastIndex < citation.length) {
       parts.push(
         <span key={`text-${partIndex++}`}>
@@ -334,7 +393,7 @@ export default function ChatbotUI() {
       )
     }
     
-    // If no links were found, return the original citation as a span
+    // If no URLs were found, return the original citation as a span
     if (parts.length === 0) {
       return <span>{citation}</span>
     }
@@ -389,17 +448,17 @@ export default function ChatbotUI() {
           videoClaims = transcriptData.choices?.[0]?.message?.content || videoClaims
         }
 
-        // Now find citations for the specific claims made in this video
-        const citationMessages = [
-          {
-            role: "system",
-            content: "You are a medical research assistant. Based on the specific medical claims and information provided, find peer-reviewed scientific citations that support these exact claims. Return citations in this format:\n\n**Citations:**\n1. Author et al. (Year). Title. Journal Name. [Available online](URL)\n2. [Next citation with link if available]\n3. [Next citation with link if available]\n\nFor each citation, include a link to the source when possible using markdown format [text](URL). Focus on peer-reviewed medical literature, clinical guidelines, and authoritative medical sources that directly support the mentioned claims."
-          },
-          {
-            role: "user",
-            content: `Find 2-3 peer-reviewed scientific citations that support these specific medical claims:\n\n${videoClaims}\n\nProvide citations that directly validate these claims with links to full papers when available using markdown format [text](URL).`
-          }
-        ]
+                 // Now find citations for the specific claims made in this video
+         const citationMessages = [
+           {
+             role: "system",
+             content: "You are a medical research assistant. Based on the specific medical claims provided, find peer-reviewed scientific citations that support these exact claims. For each citation, use this exact format:\n\n\"[Specific medical claim from the video]\" - [Year] [Source name] article [direct link]\n\nExample:\n\"Heart disease kills 655,000 Americans annually\" - 2023 American Heart Association study https://www.ahajournals.org/doi/10.1161/CIR.0000000000001123\n\nRequirements:\n1. Quote the exact medical claim in quotes\n2. Provide year and simple source description (like \"Mayo Clinic article\" or \"Harvard study\")\n3. Include direct link to the source\n4. Focus on recent peer-reviewed medical literature and authoritative medical sources"
+           },
+           {
+             role: "user",
+             content: `Find 2-3 recent scientific citations that support specific medical claims from this video content:\n\n${videoClaims}\n\nUse the format: \"[exact claim]\" - [year] [source description] [direct link]`
+           }
+         ]
 
         const citationResponse = await fetch('https://api.perplexity.ai/chat/completions', {
           method: 'POST',
@@ -421,20 +480,27 @@ export default function ChatbotUI() {
 
         const videoCitations: string[] = []
 
-        if (citationResponse.ok) {
-          const citationData = await citationResponse.json()
-          const citationContent = citationData.choices?.[0]?.message?.content || ''
-          
-          // Extract citations from the response
-          const lines = citationContent.split('\n')
-          
-          for (const line of lines) {
-            const trimmed = line.trim()
-            if (trimmed && (trimmed.match(/^\d+\./) || trimmed.includes('et al') || trimmed.includes('Journal') || trimmed.includes('['))) {
-              videoCitations.push(trimmed.replace(/^\d+\.\s*/, ''))
-            }
-          }
-        }
+                 if (citationResponse.ok) {
+           const citationData = await citationResponse.json()
+           const citationContent = citationData.choices?.[0]?.message?.content || ''
+           
+           // Extract citations from the response - looking for format "claim" - year source link
+           const lines = citationContent.split('\n')
+           
+           for (const line of lines) {
+             const trimmed = line.trim()
+             // Look for lines that start with quotes and contain year/source patterns
+             if (trimmed && 
+                 (trimmed.startsWith('"') && trimmed.includes('-')) || 
+                 (trimmed.includes('"') && (trimmed.includes('20') || trimmed.includes('http') || trimmed.includes('article')))) {
+               // Clean up numbering and formatting
+               const cleanedCitation = trimmed.replace(/^\d+\.\s*/, '').replace(/^\*\*.*?\*\*\s*/, '')
+               if (cleanedCitation.length > 15 && cleanedCitation.includes('"')) { // Ensure it contains a claim
+                 videoCitations.push(cleanedCitation)
+               }
+             }
+           }
+         }
 
         // Add the video with its specific citations
         updatedVideos.push({
