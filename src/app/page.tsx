@@ -547,10 +547,10 @@ export default function ChatbotUI() {
   }
 
   const suggestedQuestions = [
-    "Find videos about diabetes management",
-    "Search heart disease prevention videos", 
-    "Show mental health awareness videos",
-    "Find nutrition and diet videos",
+    "Diabetes management",
+    "Heart disease prevention", 
+    "Mental health awareness",
+    "Nutrition and diet",
   ]
 
   return (
@@ -564,9 +564,16 @@ export default function ChatbotUI() {
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">
-              Medical Video Search
-            </h1>
+            <div className="flex items-center gap-2">
+              <img 
+                src="/tech-ahead-logo-black.svg" 
+                alt="Tech Ahead Logo" 
+                className="h-6 w-auto"
+              />
+              <h1 className="text-xl font-semibold text-gray-900">
+                Medical Video Search
+              </h1>
+            </div>
             <p className="text-sm text-gray-600">
               Find evidence-based medical videos with scientific citations
             </p>
