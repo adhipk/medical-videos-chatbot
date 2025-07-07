@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Query is required' }, { status: 400 })
     }
 
-    const apiKey = process.env.PERPLEXITY_API_KEY || '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'
+    const apiKey = process.env.PERPLEXITY_API_KEY
 
     // Single comprehensive search that finds videos AND their supporting citations
     const messages = [
@@ -52,30 +52,39 @@ RESPONSE FORMAT:
 
 STRICT REQUIREMENTS:
 - ONLY return REAL YouTube videos that actually exist - NO FAKE URLs
-- Find videos ONLY from: Mayo Clinic, Cleveland Clinic, Johns Hopkins, Harvard Medical School, Stanford Medicine, Mount Sinai, WebMD, MedlinePlus, or verified medical professionals
+- Find videos from DIFFERENT trusted medical sources: Cleveland Clinic, Johns Hopkins, Harvard Medical School, Stanford Medicine, Mount Sinai, WebMD, MedlinePlus, Mayo Clinic, UCLA Health, NYU Langone, Mass General Brigham, UCSF Health, or verified medical professionals
+- CRITICAL: Each video must be from a DIFFERENT medical institution/channel - NO duplicates from same source
 - Use exact video titles and channel names from real YouTube videos
 - Verify YouTube URLs are real and functional
 - Each citation must support actual claims made in the real videos
-- If you cannot find real videos, respond: "No real medical videos found for this topic. Try different search terms."
+- If you cannot find real videos from different sources, respond: "No real medical videos found for this topic. Try different search terms."
 
-DO NOT CREATE FAKE VIDEOS. ONLY RETURN REAL YOUTUBE CONTENT.`
+DO NOT CREATE FAKE VIDEOS. DIVERSIFY ACROSS DIFFERENT MEDICAL INSTITUTIONS. ONLY RETURN REAL YOUTUBE CONTENT.`
       },
       {
         role: "user", 
-        content: `Search YouTube.com and find 2-3 REAL, EXISTING educational videos about "${query}" from verified medical institutions. 
+        content: `Search YouTube.com and find 2-3 REAL, EXISTING educational videos about "${query}" from DIFFERENT verified medical institutions. 
+
+CRITICAL: Find videos from DIFFERENT sources - do NOT return multiple videos from the same channel. Diversify across multiple medical institutions.
 
 IMPORTANT: Only return videos that actually exist on YouTube. Use exact titles and URLs from real videos.
 
-Search specifically for channels like:
-- Mayo Clinic
-- Cleveland Clinic  
-- Johns Hopkins Medicine
+Search specifically for videos from these DIFFERENT channels (pick videos from different sources):
+- Cleveland Clinic
+- Johns Hopkins Medicine  
 - Harvard Medical School
 - Stanford Medicine
-- Mount Sinai
+- Mount Sinai Health System
 - WebMD
-- MedlinePlus
+- MedlinePlus (NIH)
+- Mayo Clinic
+- UCLA Health
+- NYU Langone Health
+- Mass General Brigham
+- UCSF Health
 - Board-certified physicians with verified channels
+
+REQUIREMENT: Each video MUST be from a DIFFERENT medical institution/channel. Do not return 2+ videos from the same source.
 
 For each REAL video you find:
 - Copy the EXACT title from the YouTube video
@@ -84,7 +93,7 @@ For each REAL video you find:
 - Describe what the actual video covers
 - Find scientific citations that support claims made in that specific video
 
-If you cannot find real medical videos about "${query}" on YouTube, respond with "No real medical videos found for this topic. Try different search terms."
+If you cannot find real medical videos from different sources about "${query}" on YouTube, respond with "No real medical videos found for this topic. Try different search terms."
 
 DO NOT make up fake video titles or URLs. Only return real content that exists on YouTube.`
       }
