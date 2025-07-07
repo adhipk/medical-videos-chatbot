@@ -25,6 +25,7 @@ IMPORTANT INSTRUCTIONS:
 2. Only return videos that you can verify actually exist on YouTube
 3. Use exact titles and URLs from real YouTube videos
 4. If you cannot find real videos, say "No real medical videos found for this topic"
+5. Return 3-4 citations per video
 
 RESPONSE FORMAT:
 
@@ -122,7 +123,7 @@ DO NOT make up fake video titles or URLs. Only return real content that exists o
     if (!response.ok) {
       throw new Error(`Perplexity API error: ${response.status}`)
     }
-
+    console.log("response.body", response.body)
     // Return the streaming response directly to the frontend
     return new Response(response.body, {
       headers: {

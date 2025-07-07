@@ -210,8 +210,8 @@ export default function ChatbotUI() {
     if (claimMatch) {
       const [, claim, citationPart] = claimMatch
       
-      // Look for URLs in the citation part
-      const urlRegex = /(https?:\/\/[^\s]+)/g
+      // Look for URLs in the citation part - be more permissive for citations
+      const urlRegex = /(https?:\/\/[^\s\]]+)/g
       const parts: (string | React.JSX.Element)[] = []
       let lastIndex = 0
       let match
@@ -227,16 +227,17 @@ export default function ChatbotUI() {
           )
         }
         
-        // Add the URL as a clickable link
+        // Clean the URL and add as clickable link
+        const cleanUrl = match[1].replace(/[\)\,\;\:]+$/, '')
         parts.push(
           <a
             key={`link-${partIndex++}`}
-            href={match[1]}
+            href={cleanUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-600 hover:text-blue-800 underline break-all"
           >
-            {match[1]}
+            {cleanUrl}
           </a>
         )
         
@@ -264,7 +265,7 @@ export default function ChatbotUI() {
     }
     
     // Fallback: parse any URLs in the text and make them clickable
-    const urlRegex = /(https?:\/\/[^\s]+)/g
+    const urlRegex = /(https?:\/\/[^\s\]]+)/g
     const parts: (string | React.JSX.Element)[] = []
     let lastIndex = 0
     let match
@@ -280,16 +281,17 @@ export default function ChatbotUI() {
         )
       }
       
-      // Add the URL as a clickable link
+      // Clean the URL and add as clickable link
+      const cleanUrl = match[1].replace(/[\)\,\;\:]+$/, '')
       parts.push(
         <a
           key={`link-${partIndex++}`}
-          href={match[1]}
+          href={cleanUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-600 hover:text-blue-800 underline break-all"
         >
-          {match[1]}
+          {cleanUrl}
         </a>
       )
       
@@ -334,15 +336,18 @@ export default function ChatbotUI() {
         // Extract video information - handle both new and old formats
         const titleMatch = section.match(/\*\*Title:\*\*\s*(.+?)(?=\n|\*\*|$)/m)
         const channelMatch = section.match(/\*\*Channel:\*\*\s*(.+?)(?=\n|\*\*|$)/m)
-        const urlMatch = section.match(/\*\*URL:\*\*\s*(https?:\/\/[^\s\n]+)/)
+        const urlMatch = section.match(/\*\*URL:\*\*\s*(https?:\/\/[^\s\n\]\)\,\;\:]+)/)
         const descriptionMatch = section.match(/\*\*Description:\*\*\s*(.+?)(?=\n|\*\*|$)/m)
         
         if (!titleMatch || !channelMatch || !urlMatch) continue
         
         const title = titleMatch[1]?.trim() || ''
         const channel = channelMatch[1]?.trim() || ''
-        const url = urlMatch[1]?.trim() || ''
+        let url = urlMatch[1]?.trim() || ''
         const description = descriptionMatch?.[1]?.trim() || ''
+        
+        // Clean up URL - remove any trailing brackets, parentheses, or punctuation
+        url = url.replace(/[\]\)\,\;\:]+$/, '')
         
         // Clean up any remaining markdown or emojis from title and channel
         const cleanTitle = title.replace(/[\*\[\]]/g, '').trim()
@@ -366,30 +371,72 @@ export default function ChatbotUI() {
           continue
         }
         
-        // Extract citations for this video
+        // Extract citations for this video - AGGRESSIVE EXTRACTION
         const citations: string[] = []
-        const citationsMatch = section.match(/\*\*Citations:\*\*\s*([\s\S]*?)(?=\n\*\*Video|$)/m)
         
-        if (citationsMatch) {
-          const citationText = citationsMatch[1]
-          const lines = citationText.split('\n')
+        // Find ALL potential citation patterns in the section
+        const allCitationPatterns = [
+          /\*\*Citations?:\*\*\s*([\s\S]*?)(?=\n---|\n\*\*(?:Video|Title)|\n\n\*\*|$)/m,
+          /Citations?:\s*([\s\S]*?)(?=\n---|\n\*\*(?:Video|Title)|\n\n\*\*|$)/m,
+          /Supporting Evidence:\s*([\s\S]*?)(?=\n---|\n\*\*(?:Video|Title)|\n\n\*\*|$)/m
+        ]
+        
+        let citationText = ''
+        for (const pattern of allCitationPatterns) {
+          const match = section.match(pattern)
+          if (match && match[1]) {
+            citationText = match[1]
+            break
+          }
+        }
+        
+        // Also look for any line that looks like a citation
+        const allLines = section.split(/[\n\r]+/)
+        const potentialCitations = []
+        
+        if (citationText) {
+          // Process the official citation section
+          const citationLines = citationText.split(/[\n\r]+/)
+          potentialCitations.push(...citationLines)
+        }
+        
+        // Also scan the entire section for citation-like patterns
+        for (const line of allLines) {
+          const trimmed = line.trim()
+          if (!trimmed) continue
           
-          for (const line of lines) {
-            const trimmed = line.trim()
-            // Look for citation format: "claim" - year source link
-            if (trimmed && 
-                (trimmed.startsWith('"') && trimmed.includes('-')) || 
-                (trimmed.includes('"') && (trimmed.includes('20') || trimmed.includes('http') || trimmed.includes('article') || trimmed.includes('study')))) {
-              // Clean up any markdown formatting and numbering
-              const cleanedCitation = trimmed
-                .replace(/^\d+\.\s*/, '')
-                .replace(/^\*\*.*?\*\*\s*/, '')
-                .replace(/^[\-\•\*]\s*/, '')
-                .trim()
-                
-              if (cleanedCitation.length > 15 && cleanedCitation.includes('"')) {
-                citations.push(cleanedCitation)
-              }
+          // Look for lines that start with bullet points or quotes
+          if (/^[\-\•\*]\s*"/.test(trimmed) || /^"\w/.test(trimmed) || /^\d+\.\s*"/.test(trimmed)) {
+            potentialCitations.push(trimmed)
+          }
+        }
+        
+        // Process all potential citations
+        for (const potential of potentialCitations) {
+          const trimmed = potential.trim()
+          if (!trimmed) continue
+          
+          // Clean up the citation
+          const cleanedCitation = trimmed
+            .replace(/^\d+\.\s*/, '')           // Remove numbering
+            .replace(/^[\-\•\*]\s*/, '')        // Remove bullet points
+            .replace(/^\*\*.*?\*\*\s*/, '')     // Remove bold markdown
+            .trim()
+          
+          // Skip if too short
+          if (cleanedCitation.length < 10) continue
+          
+          // Be VERY permissive - accept almost anything that looks like a citation
+          const hasQuote = cleanedCitation.includes('"')
+          const hasYear = /20\d{2}/.test(cleanedCitation)
+          const hasUrl = /https?:\/\//.test(cleanedCitation)
+          const hasMedicalWords = /\b(study|research|article|journal|clinic|medicine|health|guidelines?|statement|prevention|treatment|disease|medical|doctor|patient)\b/i.test(cleanedCitation)
+          
+          // Accept if it has ANY of these characteristics
+          if (hasQuote || hasYear || hasUrl || hasMedicalWords || cleanedCitation.length > 30) {
+            // Avoid exact duplicates
+            if (!citations.some(existing => existing.trim() === cleanedCitation.trim())) {
+              citations.push(cleanedCitation)
             }
           }
         }
