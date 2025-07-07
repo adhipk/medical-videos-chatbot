@@ -36,7 +36,7 @@ const VideoItem: React.FC<{ video: YouTubeVideo }> = ({ video }) => {
   }, [videoId])
   
   return (
-    <div className="border rounded-lg p-3 bg-gray-50">
+    <div className="border border-gray-200 rounded-lg p-3 bg-white hover:shadow-md transition-shadow">
       <div className="flex gap-3">
         <div className="flex-shrink-0">
           {!thumbnailError && video.thumbnailUrl && videoId ? (
@@ -54,11 +54,11 @@ const VideoItem: React.FC<{ video: YouTubeVideo }> = ({ video }) => {
               loading="lazy"
             />
           ) : (
-            <div className="w-32 h-24 bg-red-100 rounded border flex items-center justify-center">
+            <div className="w-32 h-24 bg-gray-100 rounded border flex items-center justify-center">
               <div className="text-center">
-                <div className="text-red-500 text-lg mb-1">📺</div>
-                <div className="text-xs text-red-700">YouTube</div>
-                <div className="text-xs text-red-700">Video</div>
+                <div className="text-gray-500 text-lg mb-1">📺</div>
+                <div className="text-xs text-gray-600">YouTube</div>
+                <div className="text-xs text-gray-600">Video</div>
               </div>
             </div>
           )}
@@ -71,7 +71,7 @@ const VideoItem: React.FC<{ video: YouTubeVideo }> = ({ video }) => {
             Channel: {video.channel}
           </p>
           {video.description && (
-            <p className="text-xs text-gray-700 mb-2 line-clamp-2">
+            <p className="text-xs text-gray-600 mb-2 line-clamp-2">
               {video.description}
             </p>
           )}
@@ -156,93 +156,7 @@ const isValidYouTubeVideoId = (videoId: string): boolean => {
   return /^[a-zA-Z0-9_-]{11}$/.test(videoId)
 }
 
-// Function to extract YouTube videos from text with validation
-const extractYouTubeVideos = (text: string): YouTubeVideo[] => {
-  const videos: YouTubeVideo[] = []
-  const foundVideoIds = new Set<string>()
-  
-  if (!text || typeof text !== 'string') return videos
-  
-     // Basic text cleanup only
-   const cleanText = text.trim()
-  
-     // Patterns for structured video information - more flexible
-   const structuredPatterns = [
-     // Standard format: **Title:** title **Channel:** channel **URL:** url
-     /\*\*Title:\*\*\s*([^\n*]+)\s*\*\*Channel:\*\*\s*([^\n*]+)\s*\*\*URL:\*\*\s*(https?:\/\/[^\s\n]+)/gi,
-     // Alternative format: Title: title Channel: channel URL: url
-     /Title:\s*([^\n]+)\s*Channel:\s*([^\n]+)\s*URL:\s*(https?:\/\/[^\s\n]+)/gi,
-     // Flexible format with possible line breaks
-     /\*\*Title:\*\*([^*]+)\*\*Channel:\*\*([^*]+)\*\*URL:\*\*(https?:\/\/[^\s*]+)/gi,
-     // Very simple format
-     /Title:\s*(.+?)[\n\r]+Channel:\s*(.+?)[\n\r]+URL:\s*(https?:\/\/\S+)/gi,
-   ]
-  
-        // Function to add valid video with comprehensive validation
-   const addValidVideo = (title: string, channel: string, url: string): boolean => {
-     if (!title || !channel || !url) return false
-     
-     const videoId = extractVideoId(url)
-     
-     if (!videoId || !isValidYouTubeVideoId(videoId) || foundVideoIds.has(videoId)) {
-       return false
-     }
-     
-     // Basic validation only
-     if (title.length < 5 || channel.length < 2) {
-       return false
-     }
-     
-     foundVideoIds.add(videoId)
-     videos.push({
-       title: title.trim(),
-       channel: channel.trim(),
-       url: url,
-       thumbnailUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
-     })
-     
-     return true
-   }
 
-     // Try structured format extraction
-   for (const pattern of structuredPatterns) {
-     let match
-     while ((match = pattern.exec(cleanText)) !== null) {
-       const title = match[1]?.trim() || ''
-       const channel = match[2]?.trim() || ''
-       const url = match[3]?.trim() || ''
-       
-       addValidVideo(title, channel, url)
-     }
-   }
-  
-     // If no structured videos found, try to extract standalone YouTube URLs
-   if (videos.length === 0) {
-     const urlPatterns = [
-       /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/g,
-       /youtu\.be\/([a-zA-Z0-9_-]{11})/g,
-     ]
-     
-     for (const pattern of urlPatterns) {
-       let match
-       while ((match = pattern.exec(cleanText)) !== null) {
-         const videoId = match[1]
-         if (isValidYouTubeVideoId(videoId) && !foundVideoIds.has(videoId)) {
-           foundVideoIds.add(videoId)
-           const originalUrl = match[0] // Use the full matched URL
-           videos.push({
-             title: 'Medical Educational Video',
-             channel: 'Medical Channel',
-             url: originalUrl,
-             thumbnailUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
-           })
-         }
-       }
-     }
-   }
-  
-  return videos
-}
 
 interface YouTubeVideo {
   title: string
@@ -278,9 +192,7 @@ export default function ChatbotUI() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [isLoadingCitations, setIsLoadingCitations] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [citationSearchStarted, setCitationSearchStarted] = useState<Set<string>>(new Set())
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom when new messages arrive
@@ -405,116 +317,100 @@ export default function ChatbotUI() {
     setInput(e.target.value)
   }
 
-  // Function to get video transcript and generate citations
-  const findCitationsForVideos = async (videos: YouTubeVideo[], searchQuery: string): Promise<YouTubeVideo[]> => {
-    const updatedVideos: YouTubeVideo[] = []
-
-    for (const video of videos) {
+    // Enhanced function to extract videos with citations from the combined response
+  const extractVideosWithCitations = (text: string): YouTubeVideo[] => {
+    const videos: YouTubeVideo[] = []
+    const foundVideoIds = new Set<string>()
+    
+    if (!text || typeof text !== 'string') return videos
+    
+    const cleanText = text.trim()
+    
+    // Split content by video sections (looking for **Video patterns or **Title:** patterns)
+    const videoSections = cleanText.split(/(?=\*\*Video|\*\*Title:\*\*)/g).filter(section => section.trim())
+    
+    for (const section of videoSections) {
       try {
-        // First, get the video transcript
-        const transcriptMessages = [
-          {
-            role: "system",
-            content: "You are a transcript analyzer. Extract the key medical claims and information from the provided YouTube video. Identify specific medical facts, treatment recommendations, statistics, and health claims that would benefit from scientific citations."
-          },
-          {
-            role: "user",
-            content: `Analyze this YouTube video and extract the key medical claims: "${video.title}" by ${video.channel} (${video.url})\n\nIdentify the main medical facts, treatment recommendations, and health claims made in this video that should be supported by scientific evidence.`
-          }
-        ]
-
-        const transcriptResponse = await fetch('https://api.perplexity.ai/chat/completions', {
-          method: 'POST',
-          headers: {
-            'accept': 'application/json',
-            'content-type': 'application/json',
-            'Authorization': 'Bearer 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'
-          },
-          body: JSON.stringify({
-            model: "sonar-pro",
-            messages: transcriptMessages,
-            "stream": false,
-            "search_domain_filter": ["youtube.com"],
-            "web_search_options": {
-              "search_context_size": "high"
-            }
-          })
-        })
-
-        let videoClaims = `Key medical topics in video about ${searchQuery}`
+        // Extract video information - handle both new and old formats
+        const titleMatch = section.match(/\*\*Title:\*\*\s*(.+?)(?=\n|\*\*|$)/m)
+        const channelMatch = section.match(/\*\*Channel:\*\*\s*(.+?)(?=\n|\*\*|$)/m)
+        const urlMatch = section.match(/\*\*URL:\*\*\s*(https?:\/\/[^\s\n]+)/)
+        const descriptionMatch = section.match(/\*\*Description:\*\*\s*(.+?)(?=\n|\*\*|$)/m)
         
-        if (transcriptResponse.ok) {
-          const transcriptData = await transcriptResponse.json()
-          videoClaims = transcriptData.choices?.[0]?.message?.content || videoClaims
+        if (!titleMatch || !channelMatch || !urlMatch) continue
+        
+        const title = titleMatch[1]?.trim() || ''
+        const channel = channelMatch[1]?.trim() || ''
+        const url = urlMatch[1]?.trim() || ''
+        const description = descriptionMatch?.[1]?.trim() || ''
+        
+        // Clean up any remaining markdown or emojis from title and channel
+        const cleanTitle = title.replace(/[\*\[\]]/g, '').trim()
+        const cleanChannel = channel.replace(/[\*\[\]]/g, '').trim()
+        
+        // Validate video
+        const videoId = extractVideoId(url)
+        if (!videoId || !isValidYouTubeVideoId(videoId) || foundVideoIds.has(videoId)) {
+          console.warn('Invalid or duplicate video URL:', url)
+          continue
         }
-
-                 // Now find citations for the specific claims made in this video
-         const citationMessages = [
-           {
-             role: "system",
-             content: "You are a medical research assistant. Based on the specific medical claims provided, find peer-reviewed scientific citations that support these exact claims. For each citation, use this exact format:\n\n\"[Specific medical claim from the video]\" - [Year] [Source name] article [direct link]\n\nExample:\n\"Heart disease kills 655,000 Americans annually\" - 2023 American Heart Association study https://www.ahajournals.org/doi/10.1161/CIR.0000000000001123\n\nRequirements:\n1. Quote the exact medical claim in quotes\n2. Provide year and simple source description (like \"Mayo Clinic article\" or \"Harvard study\")\n3. Include direct link to the source\n4. Focus on recent peer-reviewed medical literature and authoritative medical sources"
-           },
-           {
-             role: "user",
-             content: `Find 2-3 recent scientific citations that support specific medical claims from this video content:\n\n${videoClaims}\n\nUse the format: \"[exact claim]\" - [year] [source description] [direct link]`
-           }
-         ]
-
-        const citationResponse = await fetch('https://api.perplexity.ai/chat/completions', {
-          method: 'POST',
-          headers: {
-            'accept': 'application/json',
-            'content-type': 'application/json',
-            'Authorization': 'Bearer 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'
-          },
-          body: JSON.stringify({
-            model: "sonar-pro",
-            messages: citationMessages,
-            "stream": false,
-            "search_mode": "academic",
-            "web_search_options": {
-              "search_context_size": "high"
+        
+        // Additional validation to catch obvious fake URLs
+        if (url.includes('example') || url.includes('abc123') || url.includes('xyz') || 
+            title.toLowerCase().includes('fake') || title.toLowerCase().includes('example')) {
+          console.warn('Detected potentially fake video:', title, url)
+          continue
+        }
+        
+        if (cleanTitle.length < 5 || cleanChannel.length < 2) {
+          continue
+        }
+        
+        // Extract citations for this video
+        const citations: string[] = []
+        const citationsMatch = section.match(/\*\*Citations:\*\*\s*([\s\S]*?)(?=\n\*\*Video|$)/m)
+        
+        if (citationsMatch) {
+          const citationText = citationsMatch[1]
+          const lines = citationText.split('\n')
+          
+          for (const line of lines) {
+            const trimmed = line.trim()
+            // Look for citation format: "claim" - year source link
+            if (trimmed && 
+                (trimmed.startsWith('"') && trimmed.includes('-')) || 
+                (trimmed.includes('"') && (trimmed.includes('20') || trimmed.includes('http') || trimmed.includes('article') || trimmed.includes('study')))) {
+              // Clean up any markdown formatting and numbering
+              const cleanedCitation = trimmed
+                .replace(/^\d+\.\s*/, '')
+                .replace(/^\*\*.*?\*\*\s*/, '')
+                .replace(/^[\-\•\*]\s*/, '')
+                .trim()
+                
+              if (cleanedCitation.length > 15 && cleanedCitation.includes('"')) {
+                citations.push(cleanedCitation)
+              }
             }
-          })
+          }
+        }
+        
+        foundVideoIds.add(videoId)
+        videos.push({
+          title: cleanTitle,
+          channel: cleanChannel,
+          url: url,
+          description: description || undefined,
+          thumbnailUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+          citations: citations.length > 0 ? citations.slice(0, 4) : undefined
         })
-
-        const videoCitations: string[] = []
-
-                 if (citationResponse.ok) {
-           const citationData = await citationResponse.json()
-           const citationContent = citationData.choices?.[0]?.message?.content || ''
-           
-           // Extract citations from the response - looking for format "claim" - year source link
-           const lines = citationContent.split('\n')
-           
-           for (const line of lines) {
-             const trimmed = line.trim()
-             // Look for lines that start with quotes and contain year/source patterns
-             if (trimmed && 
-                 (trimmed.startsWith('"') && trimmed.includes('-')) || 
-                 (trimmed.includes('"') && (trimmed.includes('20') || trimmed.includes('http') || trimmed.includes('article')))) {
-               // Clean up numbering and formatting
-               const cleanedCitation = trimmed.replace(/^\d+\.\s*/, '').replace(/^\*\*.*?\*\*\s*/, '')
-               if (cleanedCitation.length > 15 && cleanedCitation.includes('"')) { // Ensure it contains a claim
-                 videoCitations.push(cleanedCitation)
-               }
-             }
-           }
-         }
-
-        // Add the video with its specific citations
-        updatedVideos.push({
-          ...video,
-          citations: videoCitations.length > 0 ? videoCitations.slice(0, 3) : undefined
-        })
-
-      } catch {
-        // If citation search fails for this video, add it without citations
-        updatedVideos.push(video)
+        
+      } catch (error) {
+        console.warn('Error parsing video section:', error)
+        continue
       }
     }
-
-    return updatedVideos
+    
+    return videos
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -534,46 +430,22 @@ export default function ChatbotUI() {
     setIsLoading(true)
     setError(null)
     
-    // Clear citation search tracking for new conversation
-    setCitationSearchStarted(new Set())
+    // Single API call handles both videos and citations
 
     try {
-      // Prepare messages for Perplexity API
-      const apiMessages = [
-        {
-          role: "system",
-          content: "You are a medical video search assistant. You must search YouTube and find real, existing educational videos from verified medical sources.\n\nIMPORTANT: You MUST perform actual web searches to find real YouTube videos. Do not generate fake or example content.\n\nFor each real video you find, provide:\n**Title:** [exact video title from YouTube]\n**Channel:** [exact YouTube channel name]\n**URL:** [complete YouTube URL]\n\nSearch for videos from trusted sources like Mayo Clinic, Cleveland Clinic, Johns Hopkins, Harvard Medical School, WebMD, or certified doctors.\n\nReturn 2-3 real videos maximum. If no real videos are found, state 'No videos found.'"
-        },
-        ...messages.map(msg => ({
-          role: msg.role,
-          content: msg.content
-        })),
-        {
-          role: "user",
-          content: `Search YouTube for educational medical videos about "${currentInput}". Find videos from Mayo Clinic, Cleveland Clinic, Johns Hopkins, Harvard Medical School, WebMD, or certified doctors. Include the exact video titles, channel names, and YouTube URLs.`
-        }
-      ]
-
-      const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      // Call the new combined video search with citations API
+      const response = await fetch('/api/search-videos-with-citations', {
         method: 'POST',
         headers: {
-          'accept': 'application/json',
-          'content-type': 'application/json',
-          'Authorization': 'Bearer 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'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: "sonar-pro",
-          messages: apiMessages,
-          "stream": true,
-          "search_domain_filter": ["youtube.com"],
-          "web_search_options": {
-            "search_context_size": "medium"
-          }
+          query: currentInput
         })
       })
 
       if (!response.ok) {
-        throw new Error(`Perplexity API error: ${response.status}`)
+        throw new Error(`Combined search API error: ${response.status}`)
       }
 
       // Create assistant message
@@ -626,18 +498,19 @@ export default function ChatbotUI() {
                     if (msg.id === assistantMessage.id) {
                       const newContent = msg.content + content
                       
-                      // Extract videos from content
+                      // Extract videos with citations from the combined response
                       let videos = msg.videos || []
                       
-                      if (newContent.includes('**URL:**') || newContent.includes('**Title:**')) {
-                        const extractedVideos = extractYouTubeVideos(newContent)
+                      if (newContent.includes('**Title:**')) {
+                        const extractedVideos = extractVideosWithCitations(newContent)
                         if (extractedVideos.length > 0) {
                           videos = extractedVideos
                         }
                       }
                       
                       // If content suggests no videos were found, clear any existing videos
-                      if (newContent.toLowerCase().includes('no videos found')) {
+                      if (newContent.toLowerCase().includes('no videos found') || 
+                          newContent.toLowerCase().includes('no real medical videos found')) {
                         videos = []
                       }
                       
@@ -661,50 +534,7 @@ export default function ChatbotUI() {
         }
       }
 
-      // After video search completes, check for videos and trigger citation search
-      const checkForVideosAndStartCitations = () => {
-        setMessages(currentMessages => {
-          const assistantMsg = currentMessages.find(msg => msg.id === assistantMessage.id)
-          
-          // Check if citation search already started for this message and videos don't already have citations
-          if (assistantMsg && 
-              assistantMsg.videos && 
-              assistantMsg.videos.length > 0 && 
-              !isLoadingCitations && 
-              !citationSearchStarted.has(assistantMessage.id) &&
-              !assistantMsg.videos.some(v => v.citations && v.citations.length > 0)) {
-            
-            // Mark citation search as started for this message
-            setCitationSearchStarted(prev => new Set([...prev, assistantMessage.id]))
-            
-            // Start citation search
-            setIsLoadingCitations(true)
-            findCitationsForVideos(assistantMsg.videos, currentInput)
-              .then(videosWithCitations => {
-                setMessages(prev => 
-                  prev.map(msg => {
-                    if (msg.id === assistantMessage.id) {
-                      return { 
-                        ...msg, 
-                        videos: videosWithCitations
-                      }
-                    }
-                    return msg
-                  })
-                )
-                setIsLoadingCitations(false)
-              })
-              .catch(() => {
-                setIsLoadingCitations(false)
-              })
-          }
-          
-          return currentMessages
-        })
-      }
-      
-      // Single timeout to check for videos (prevents multiple searches)
-      setTimeout(checkForVideosAndStartCitations, 1000)
+      // No need for separate citation search - citations are included in the combined response
 
     } catch (err) {
       console.error('Chat error:', err)
@@ -724,40 +554,44 @@ export default function ChatbotUI() {
   ]
 
   return (
-    <div className="flex flex-col h-screen max-w-4xl mx-auto bg-background">
+    <div className="flex flex-col h-screen max-w-5xl mx-auto bg-gray-50">
       {/* Header */}
-      <div className="border-b bg-card p-4">
+      <div className="border-b bg-white p-4 shadow-sm">
         <div className="flex items-center gap-3">
-          <Avatar>
-            <AvatarFallback>
+          <Avatar className="h-10 w-10">
+            <AvatarFallback className="bg-blue-600 text-white">
               <Bot className="h-5 w-5" />
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-xl font-semibold">Academic Medical Video Search</h1>
-            <p className="text-sm text-muted-foreground">
-              Find evidence-based YouTube videos from verified medical institutions with academic citations.
+            <h1 className="text-xl font-semibold text-gray-900">
+              Medical Video Search
+            </h1>
+            <p className="text-sm text-gray-600">
+              Find evidence-based medical videos with scientific citations
             </p>
           </div>
         </div>
       </div>
 
-      {/* Messages */}
+            {/* Messages */}
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
           {messages.length === 0 && (
-            <div className="text-center py-8">
-              <Bot className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">Welcome to Academic Medical Video Search</h3>
-              <p className="text-muted-foreground mb-6">
-                Search for evidence-based YouTube videos from verified medical institutions with academic sources:
+            <div className="text-center py-16">
+              <Bot className="h-12 w-12 mx-auto text-blue-600 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Search Medical Videos
+              </h3>
+              <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                Search for educational medical videos from trusted sources with scientific citations.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-2xl mx-auto">
                 {suggestedQuestions.map((question, index) => (
                   <Button
                     key={index}
                     variant="outline"
-                    className="text-left justify-start h-auto p-3 bg-transparent"
+                    className="text-left justify-start h-auto p-3 hover:bg-gray-50"
                     onClick={() => setInput(question)}
                   >
                     {question}
@@ -771,24 +605,32 @@ export default function ChatbotUI() {
             <div key={message.id} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
               {message.role === "assistant" && (
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback>
+                  <AvatarFallback className="bg-blue-600 text-white">
                     <Bot className="h-4 w-4" />
                   </AvatarFallback>
                 </Avatar>
               )}
 
               <div className={`max-w-[80%] ${message.role === "user" ? "order-first" : ""}`}>
-                <Card className={message.role === "user" ? "bg-primary text-primary-foreground" : ""}>
+                <Card className={message.role === "user" ? "bg-blue-600 text-white" : "bg-white border-gray-200"}>
                   <CardContent className="p-3">
                     {message.role === "assistant" ? (
                       <div className="text-gray-700">
+                        {/* Display the assistant's streaming content */}
+                        {/* {message.content && (
+                          <div className="whitespace-pre-wrap mb-4">
+                            {message.content}
+                          </div>
+                        )} */}
+                        
+                        {/* Show no videos found message only when explicitly indicated */}
                         {message.videos && message.videos.length === 0 && 
                          message.content && 
                          (message.content.toLowerCase().includes('no verified medical videos found') || 
                           message.content.toLowerCase().includes('no videos found')) && (
                           <div className="text-sm p-3 bg-yellow-50 border border-yellow-200 rounded">
                             <p className="text-yellow-800">
-                              🔍 <strong>No verified medical videos found</strong> for your search query. 
+                              <strong>No verified medical videos found</strong> for your search query. 
                               Try rephrasing your question or using more general medical terms.
                             </p>
                             <p className="text-yellow-700 text-xs mt-2">
@@ -807,47 +649,33 @@ export default function ChatbotUI() {
                     {message.role === "assistant" && message.videos && message.videos.length > 0 && (
                       <div className="mt-4 space-y-3">
                         <div className="flex items-center gap-2 mb-3">
-                          <Badge variant="secondary" className="text-xs bg-red-50 text-red-700">
-                            📺 Medical Videos
+                          <Badge variant="secondary" className="text-xs">
+                            Medical Videos
                           </Badge>
                         </div>
                         {message.videos.map((video, index) => (
                           <VideoItem key={index} video={video} />
                         ))}
                         <div className="text-xs text-gray-500 italic border-t pt-2">
-                          <p>⚠️ <strong>Educational Purpose:</strong> Videos are for educational use only. Always consult healthcare professionals for medical advice.</p>
+                          <p><strong>Educational Purpose:</strong> Videos are for educational use only. Always consult healthcare professionals for medical advice.</p>
                         </div>
                       </div>
                     )}
 
-                    {/* Citations Loading Indicator */}
-                    {message.role === "assistant" && message.videos && message.videos.length > 0 && isLoadingCitations && (
-                      <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin text-green-600" />
-                          <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
-                            🔬 Finding Scientific Evidence...
-                          </Badge>
-                        </div>
-                      </div>
-                    )}
 
-                    {/* Scientific Evidence for Video Claims */}
+
+                                        {/* Scientific Evidence for Video Claims */}
                     {message.role === "assistant" && message.videos && message.videos.some(v => v.citations && v.citations.length > 0) && (
-                      <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
-                            🔬 Scientific Evidence for Video Claims
-                          </Badge>
-                        </div>
-                        <div className="space-y-4">
+                      <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <h3 className="text-sm font-medium text-green-800 mb-3">Scientific Evidence</h3>
+                        <div className="space-y-3">
                           {message.videos.map((video, videoIndex) => {
                             if (!video.citations || video.citations.length === 0) return null
                             
                             return (
                               <div key={videoIndex} className="bg-white p-3 rounded border border-green-200">
-                                <div className="font-medium text-green-800 mb-2 text-sm">
-                                  📺 &quot;{video.title}&quot; - Supporting Evidence:
+                                <div className="font-medium text-gray-800 text-sm mb-2">
+                                  &quot;{video.title}&quot; - Supporting Evidence:
                                 </div>
                                 <div className="space-y-2">
                                   {video.citations.map((citation, citationIndex) => (
@@ -869,7 +697,7 @@ export default function ChatbotUI() {
 
               {message.role === "user" && (
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback>
+                  <AvatarFallback className="bg-green-600 text-white">
                     <User className="h-4 w-4" />
                   </AvatarFallback>
                 </Avatar>
@@ -880,16 +708,16 @@ export default function ChatbotUI() {
           {isLoading && (
             <div className="flex gap-3 justify-start">
               <Avatar className="h-8 w-8">
-                <AvatarFallback>
+                <AvatarFallback className="bg-blue-600 text-white">
                   <Bot className="h-4 w-4" />
                 </AvatarFallback>
               </Avatar>
-              <Card>
+              <Card className="bg-white border-gray-200">
                 <CardContent className="p-3">
                   <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm text-muted-foreground">
-                      {isLoadingCitations ? 'Finding scientific evidence...' : 'Searching for videos...'}
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    <span className="text-sm text-gray-700">
+                      Searching for videos with citations...
                     </span>
                   </div>
                 </CardContent>
@@ -908,12 +736,12 @@ export default function ChatbotUI() {
       </ScrollArea>
 
       {/* Input */}
-      <div className="border-t p-4">
+      <div className="border-t bg-white p-4">
         <form onSubmit={handleSubmit} className="flex gap-2">
           <Input
             value={input}
             onChange={handleInputChange}
-            placeholder="Type your message..."
+            placeholder="Ask about any medical topic..."
             disabled={isLoading}
             className="flex-1"
           />
